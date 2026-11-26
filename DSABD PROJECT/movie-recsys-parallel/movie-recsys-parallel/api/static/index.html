@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parallel Movie Recommender</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#667085;--accent:#4f46e5;--border:#e4e7ec}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1115;--card:#171a21;--text:#e8eaed;--muted:#9aa3af;--accent:#818cf8;--border:#2a2f3a}}
+  *{box-sizing:border-box} body{margin:0;font:15px/1.5 system-ui,sans-serif;background:var(--bg);color:var(--text)}
+  main{max-width:920px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:22px;margin:0 0 4px} p.sub{color:var(--muted);margin:0 0 20px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px}
+  input,select,button{font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text)}
+  button{background:var(--accent);color:#fff;border:0;cursor:pointer} button.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center} .row input[type=text]{flex:1;min-width:200px}
+  ul{list-style:none;padding:0;margin:8px 0 0} li{padding:8px 0;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:12px;align-items:center}
+  .meta{color:var(--muted);font-size:13px} .pill{display:inline-block;font-size:12px;padding:1px 8px;border-radius:99px;border:1px solid var(--border);color:var(--muted);margin-right:4px}
+  .hit{cursor:pointer} .hit:hover{background:rgba(127,127,255,.08)} .score{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+  .err{color:#d92d20}
+</style>
+</head>
+<body>
+<main>
+  <h1>🎬 Parallel Movie Recommender</h1>
+  <p class="sub">Collaborative filtering (item-kNN + ALS), trained with an OpenMP-parallel C++ core. API docs: <a href="/docs">/docs</a></p>
+
+  <div class="card">
+    <strong>1 · Tell us what you've watched</strong>
+    <div class="row" style="margin-top:8px">
+      <input id="q" type="text" placeholder="Search a movie title, e.g. Matrix" autocomplete="off">
+    </div>
+    <ul id="hits"></ul>
+  </div>
+
+  <div class="card">
+    <strong>2 · Your ratings</strong>
+    <ul id="mine"><li class="meta">Nothing yet — click a search result to add it.</li></ul>
+  </div>
+
+  <div class="card">
+    <strong>3 · Get recommendations</strong>
+    <div class="row" style="margin-top:8px">
+      <select id="method"><option value="hybrid">Hybrid</option><option value="als">ALS</option><option value="knn">Item-kNN</option></select>
+      <input id="genres" type="text" placeholder="Genres (optional): Comedy, Romance" style="flex:1;min-width:200px">
+      <select id="n"><option>5</option><option selected>10</option><option>20</option></select>
+      <button id="go">Recommend</button>
+    </div>
+    <p id="status" class="meta"></p>
+    <ul id="recs"></ul>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const mine = new Map();               // movie_id -> {title, rating}
+const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let timer;
+
+$('q').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 250); });
+
+async function search() {
+  const q = $('q').value.trim();
+  if (!q) { $('hits').innerHTML = ''; return; }
+  const r = await fetch('/movies/search?limit=6&q=' + encodeURIComponent(q));
+  const hits = (await r.json()).filter(m => m.in_model);
+  $('hits').innerHTML = hits.map(m =>
+    `<li class="hit" data-id="${m.movie_id}" data-title="${esc(m.title)}"><span>${esc(m.title)}<br><span class="meta">${m.genres.map(g=>`<span class="pill">${esc(g)}</span>`).join('')}</span></span><span class="meta">+ add</span></li>`
+  ).join('') || '<li class="meta">No matches in the model.</li>';
+}
+
+$('hits').addEventListener('click', e => {
+  const li = e.target.closest('.hit'); if (!li) return;
+  mine.set(+li.dataset.id, {title: li.dataset.title, rating: 4});
+  $('q').value = ''; $('hits').innerHTML = ''; renderMine();
+});
+
+function renderMine() {
+  if (!mine.size) { $('mine').innerHTML = '<li class="meta">Nothing yet — click a search result to add it.</li>'; return; }
+  $('mine').innerHTML = [...mine].map(([id, m]) =>
+    `<li><span>${esc(m.title)}</span><span class="row">
+       <select data-id="${id}" class="rate">${[0.5,1,1.5,2,2.5,3,3.5,4,4.5,5].map(v=>`<option ${v===m.rating?'selected':''}>${v}</option>`).join('')}</select>
+       <button class="ghost rm" data-id="${id}">remove</button></span></li>`).join('');
+}
+$('mine').addEventListener('change', e => { if (e.target.classList.contains('rate')) mine.get(+e.target.dataset.id).rating = +e.target.value; });
+$('mine').addEventListener('click', e => { if (e.target.classList.contains('rm')) { mine.delete(+e.target.dataset.id); renderMine(); } });
+
+$('go').addEventListener('click', async () => {
+  if (!mine.size) { $('status').innerHTML = '<span class="err">Add at least one rated movie first.</span>'; return; }
+  $('status').textContent = 'Computing…'; $('recs').innerHTML = '';
+  const genres = $('genres').value.split(',').map(s => s.trim()).filter(Boolean);
+  const body = {ratings: [...mine].map(([id, m]) => ({movie_id: id, rating: m.rating})),
+                n: +$('n').value, method: $('method').value, genres: genres.length ? genres : null};
+  const t0 = performance.now();
+  const r = await fetch('/recommend', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const data = await r.json();
+  if (!r.ok) { $('status').innerHTML = `<span class="err">${esc(JSON.stringify(data.detail || data))}</span>`; return; }
+  $('status').textContent = `${data.recommendations.length} results in ${(performance.now() - t0).toFixed(0)} ms`;
+  $('recs').innerHTML = data.recommendations.map(x =>
+    `<li><span>${esc(x.title)}<br><span class="meta">${x.genres.map(g=>`<span class="pill">${esc(g)}</span>`).join('')}${x.because.length ? ' because you liked ' + x.because.map(esc).join(', ') : ''}</span></span>
+     <span class="score">${x.predicted_rating ?? ''} ★</span></li>`).join('');
+});
+</script>
+</body>
+</html>

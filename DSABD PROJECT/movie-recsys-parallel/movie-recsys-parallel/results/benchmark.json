@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "machine": "x86_64",
+    "available_cores": 1,
+    "python": "3.12.3",
+    "dataset": {
+      "n_users": 668,
+      "n_items": 10147,
+      "n_train": 98542
+    },
+    "rank": 32,
+    "iters": 10,
+    "repeats": 3,
+    "outputs_identical_across_threads": true,
+    "oversubscribed_thread_counts": [
+      2,
+      4,
+      8
+    ]
+  },
+  "rows": [
+    {
+      "threads": 1,
+      "similarity_s": 0.367747,
+      "als_s": 0.687252,
+      "compute_s": 1.065067,
+      "load_s": 0.017742,
+      "test_rmse": 0.748126,
+      "speedup_similarity": 1.0,
+      "speedup_als": 1.0,
+      "speedup_compute": 1.0,
+      "efficiency": 1.0
+    },
+    {
+      "threads": 2,
+      "similarity_s": 0.349968,
+      "als_s": 0.694194,
+      "compute_s": 1.044161,
+      "load_s": 0.017211,
+      "test_rmse": 0.748126,
+      "speedup_similarity": 1.0508017875920084,
+      "speedup_als": 0.9899999135688294,
+      "speedup_compute": 1.0200218165589408,
+      "efficiency": 0.5100109082794704
+    },
+    {
+      "threads": 4,
+      "similarity_s": 0.362372,
+      "als_s": 0.696229,
+      "compute_s": 1.057628,
+      "load_s": 0.016434,
+      "test_rmse": 0.748126,
+      "speedup_similarity": 1.0148328237281026,
+      "speedup_als": 0.9871062538331498,
+      "speedup_compute": 1.0070336640104083,
+      "efficiency": 0.25175841600260207
+    },
+    {
+      "threads": 8,
+      "similarity_s": 0.363874,
+      "als_s": 0.715929,
+      "compute_s": 1.079803,
+      "load_s": 0.017585,
+      "test_rmse": 0.748126,
+      "speedup_similarity": 1.0106437942804378,
+      "speedup_als": 0.9599443520237341,
+      "speedup_compute": 0.9863530662537517,
+      "efficiency": 0.12329413328171897
+    }
+  ]
+}
