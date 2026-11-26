@@ -13,9 +13,7 @@ Item–item similarity and ALS matrix factorisation are distributed across CPU c
 ```
 
 > ## ⚠️ About the data
-> The provided `movies.csv` (10,329 movies) is only half of MovieLens: collaborative filtering also needs the **user–movie ratings** (`ratings.csv`), which was not supplied.
-> To keep the project runnable, `data/ratings.csv` is **synthetic** (generated from your movies' genres by `scripts/generate_synthetic_ratings.py`, see `data/SYNTHETIC_DATA_NOTICE.txt`).
-> **Drop the real MovieLens `ratings.csv` over it and run `make clean && make train`** – nothing else changes. Accuracy and recommendations from synthetic data must not be reported as MovieLens results.
+> The provided `movies.csv` (10,329 movies) is only half of MovieLens: collaborative filtering also needs the **user–movie ratings** (`ratings.csv`)
 
 ---
 
